@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akamai SIEM Report Generator</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #111; font-size: 14px; line-height: 1.6; }
+#root { max-width: 800px; margin: 0 auto; padding: 2rem 1.5rem; }
+input, select { font-family: inherit; font-size: 13px; background: #fff; color: #111; border: 1px solid rgba(0,0,0,0.18); border-radius: 8px; padding: 8px 10px; width: 100%; outline: none; transition: border-color 0.15s; }
+input:focus, select:focus { border-color: #378ADD; box-shadow: 0 0 0 3px rgba(55,138,221,0.12); }
+button { font-family: inherit; font-size: 13px; cursor: pointer; border-radius: 8px; border: 1px solid rgba(0,0,0,0.18); background: transparent; color: #111; padding: 8px 14px; transition: background 0.12s, transform 0.08s; }
+button:hover { background: rgba(0,0,0,0.05); }
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+label { font-size: 11px; font-weight: 600; color: #555; display: block; margin-bottom: 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+.card { background: #fff; border: 1px solid rgba(0,0,0,0.09); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.section-title { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #888; margin-bottom: 10px; }
+.badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+.badge-info { background: #E6F1FB; color: #0C447C; }
+.badge-success { background: #EAF3DE; color: #27500A; }
+.badge-warn { background: #FAEEDA; color: #633806; }
+.tag { display: inline-flex; align-items: center; font-size: 12px; padding: 3px 9px; border-radius: 20px; background: rgba(0,0,0,0.05); color: #555; border: 1px solid rgba(0,0,0,0.09); margin: 2px; cursor: pointer; transition: background 0.1s; }
+.tag.selected { background: #E6F1FB; color: #0C447C; border-color: #85B7EB; }
+.tag:hover { background: rgba(0,0,0,0.08); }
+.tag.selected:hover { background: #B5D4F4; }
+.progress-bar { height: 4px; background: rgba(0,0,0,0.08); border-radius: 2px; overflow: hidden; margin: 8px 0; }
+.progress-fill { height: 100%; background: #378ADD; border-radius: 2px; transition: width 0.3s ease; }
+.log-area { font-family: 'Courier New', monospace; font-size: 11px; background: #f9f9f7; border: 1px solid rgba(0,0,0,0.08); border-radius: 8px; padding: 10px 12px; max-height: 160px; overflow-y: auto; }
+.log-line { padding: 1px 0; color: #555; }
+.log-line.ok { color: #3B6D11; }
+.log-line.err { color: #A32D2D; }
+.log-line.info { color: #185FA5; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.stat-card { background: #f5f5f3; border-radius: 8px; padding: 12px; text-align: center; }
+.stat-val { font-size: 22px; font-weight: 500; line-height: 1.1; }
+.stat-lbl { font-size: 11px; color: #888; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+.divider { border: none; border-top: 1px solid rgba(0,0,0,0.08); margin: 16px 0; }
+.primary-btn { background: #185FA5; color: #fff; border-color: #185FA5; font-weight: 500; }
+.primary-btn:hover { background: #0C447C; border-color: #0C447C; }
+.step-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+.step-dot.active { background: #185FA5; color: #fff; }
+.step-dot.done { background: #3B6D11; color: #fff; }
+.step-dot.idle { background: #e0e0dc; color: #888; }
+.event-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 12px; }
+.event-row:last-child { border-bottom: none; }
+.rank { width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.06); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: #666; flex-shrink: 0; }
+.bar-bg { flex: 1; height: 5px; background: rgba(0,0,0,0.07); border-radius: 3px; margin: 0 8px; }
+.bar-fill { height: 100%; border-radius: 3px; background: #378ADD; }
+.drop-zone { border: 2px dashed rgba(0,0,0,0.18); border-radius: 12px; padding: 36px 20px; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.drop-zone:hover, .drop-zone.drag-over { border-color: #378ADD; background: rgba(55,138,221,0.04); }
+.drop-zone.has-files { border-color: #3B6D11; background: rgba(59,109,17,0.03); cursor: default; }
+.file-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #f9f9f7; border-radius: 8px; margin-bottom: 6px; font-size: 12px; border: 1px solid rgba(0,0,0,0.07); }
+.file-row-name { flex: 1; font-family: monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row-size { color: #888; font-size: 11px; flex-shrink: 0; }
+.file-remove { border: none; background: none; color: #A32D2D; font-size: 16px; line-height: 1; cursor: pointer; padding: 0 4px; }
+.config-card { background: #fff; border: 1px solid rgba(0,0,0,0.1); border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem; }
+.config-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.config-name { font-size: 15px; font-weight: 600; color: #0C447C; }
+.config-id { font-size: 11px; color: #888; font-family: monospace; }
+h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+code { background: rgba(0,0,0,0.06); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ── Field definitions ───────────────────────────────────────────────────────
+const KNOWN_FIELDS = [
+  { key: "decoded.ruleTag",           label: "Rule tag",              group: "Attack (decoded)" },
+  { key: "decoded.ruleMessage",       label: "Rule message",          group: "Attack (decoded)" },
+  { key: "decoded.ruleSeverity",      label: "Rule severity",         group: "Attack (decoded)" },
+  { key: "decoded.ruleAction",        label: "Rule action",           group: "Attack (decoded)" },
+  { key: "decoded.ruleId",            label: "Rule ID",               group: "Attack (decoded)" },
+  { key: "decoded.allRuleTags",       label: "All rule tags",         group: "Attack (decoded)" },
+  { key: "decoded.allRuleMessages",   label: "All rule messages",     group: "Attack (decoded)" },
+  { key: "decoded.allRuleSeverities", label: "All severities",        group: "Attack (decoded)" },
+  { key: "decoded.ruleCount",         label: "Rules matched (count)", group: "Attack (decoded)" },
+  { key: "decoded.appliedAction",     label: "Applied action",        group: "Attack (decoded)" },
+  { key: "decoded.clientIP",          label: "Client IP",             group: "Attack (decoded)" },
+  { key: "httpMessage.parsedHeaders.User-Agent", label: "User-Agent", group: "HTTP headers" },
+  { key: "httpMessage.parsedHeaders.Host",       label: "Host",       group: "HTTP headers" },
+  { key: "httpMessage.parsedHeaders.Accept",     label: "Accept",     group: "HTTP headers" },
+  { key: "httpMessage.parsedHeaders.Content-Type", label: "Content-Type", group: "HTTP headers" },
+  { key: "httpMessage.parsedHeaders.Referer",    label: "Referer",    group: "HTTP headers" },
+  { key: "httpMessage.parsedHeaders.X-Forwarded-For", label: "X-Forwarded-For", group: "HTTP headers" },
+  { key: "httpMessage.method",        label: "HTTP method",           group: "HTTP" },
+  { key: "httpMessage.status",        label: "HTTP status",           group: "HTTP" },
+  { key: "httpMessage.path",          label: "Request path",          group: "HTTP" },
+  { key: "geo.country",               label: "Country",               group: "Geography" },
+  { key: "geo.regionCode",            label: "Region",                group: "Geography" },
+  { key: "geo.asn",                   label: "ASN",                   group: "Geography" },
+  { key: "identity.ja4",              label: "JA4 fingerprint",       group: "Identity" },
+  { key: "network.networkType",       label: "Network type",          group: "Network" },
+  { key: "attackData.configId",       label: "Config ID",             group: "Config" },
+  { key: "attackData.policyId",       label: "Policy ID",             group: "Config" },
+];
+
+const DEFAULT_CATS = [
+  "decoded.ruleMessage",
+  "decoded.appliedAction",
+  "decoded.clientIP",
+  "httpMessage.parsedHeaders.User-Agent",
+  "httpMessage.method",
+  "httpMessage.path",
+];
+
+// Fields whose values must wrap to multiple lines without truncation.
+// Rows for these fields are also kept whole on one page (rowPageBreak: avoid).
+const WRAP_FIELDS = new Set([
+  "decoded.ruleMessage",
+  "decoded.allRuleMessages",
+  "httpMessage.parsedHeaders.User-Agent",
+]);
+
+const STEPS = ["Load files", "Categories", "Report"];
+
+// ── Pure helpers ────────────────────────────────────────────────────────────
+function getNestedVal(obj, path) {
+  return path.split(".").reduce((c, k) => c != null ? c[k] : undefined, obj);
+}
+
+function topNFromCounts(catMap, n = 10) {
+  if (!catMap) return [];
+  return Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, n)
+    .map(([value, count]) => ({ value, count }));
+}
+
+function topNFromBoth(agg, cat, n = 5) {
+  const combined = {};
+  for (const bucket of ["blocked", "monitored"]) {
+    for (const [v, c] of Object.entries(agg[bucket][cat] || {}))
+      combined[v] = (combined[v] || 0) + c;
+  }
+  return Object.entries(combined).sort((a, b) => b[1] - a[1]).slice(0, n)
+    .map(([value, count]) => ({ value, count }));
+}
+
+function eventEpochSec(ev) {
+  const candidates = [ev?.timestamp, ev?.httpMessage?.start, ev?.attackData?.startTime];
+  for (const c of candidates) {
+    if (c == null) continue;
+    const n = Number(c);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    return n > 4e9 ? Math.floor(n / 1000) : Math.floor(n);
+  }
+  return 0;
+}
+
+const BLOCKED_ACTIONS = new Set(["deny", "tarpit"]);
+function isBlocked(ev) {
+  const a = getNestedVal(ev, "decoded.appliedAction") ?? getNestedVal(ev, "decoded.ruleAction");
+  return a != null && BLOCKED_ACTIONS.has(String(a).trim().toLowerCase());
+}
+
+function ingestEvent(ev, agg, fields) {
+  const bucket = isBlocked(ev) ? "blocked" : "monitored";
+  for (const { key } of fields) {
+    let v = getNestedVal(ev, key);
+    if (v == null) continue;
+    if (Array.isArray(v)) v = v.join(", ");
+    const k = String(v).trim() || "(empty)";
+    if (!agg[bucket][key]) agg[bucket][key] = {};
+    agg[bucket][key][k] = (agg[bucket][key][k] || 0) + 1;
+  }
+  return bucket;
+}
+
+function formatDate(d) { return d.toISOString().slice(0, 16).replace("T", " ") + " UTC"; }
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Gzip JSONL stream reader ────────────────────────────────────────────────
+async function* readGzipLines(file) {
+  if (typeof DecompressionStream === "undefined") {
+    throw new Error(
+      "DecompressionStream API not available. Use Chrome 80+, Edge 80+, or Firefox 113+."
+    );
+  }
+  const stream = file.stream().pipeThrough(new DecompressionStream("gzip"));
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        if (buffer.trim()) yield buffer.trim();
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+      for (const line of lines) {
+        const t = line.trim();
+        if (t) yield t;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// ── report_info.txt parser ──────────────────────────────────────────────────
+function parseReportInfo(text) {
+  const info = {};
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const parts = line.split("|");
+    if (parts.length >= 2) {
+      const cid    = parts[0].trim();
+      const name   = parts[1].trim();
+      const offset = parts[2] ? parts[2].trim() : "";
+      if (cid) info[cid] = { name, last_offset: offset };
+    }
+  }
+  return info;
+}
+
+// Extract the SIEM config ID embedded in a collector filename.
+// Pattern: siem-{configId}-{timestamp}UTC.jsonl.gz
+function configIdFromFilename(filename) {
+  const m = filename.match(/^siem-(\d+)-/);
+  return m ? m[1] : null;
+}
+
+// ── Merge pre-aggregated frequency maps into an aggCounts bucket ────────────
+// Used by the .agg.json fast path: merges { field: { value: count } } dicts.
+function mergeAggCounts(dst, src) {
+  for (const [cat, valMap] of Object.entries(src)) {
+    if (!dst[cat]) dst[cat] = {};
+    for (const [val, count] of Object.entries(valMap)) {
+      dst[cat][val] = (dst[cat][val] || 0) + count;
+    }
+  }
+}
+
+// ── XML helpers for docx ────────────────────────────────────────────────────
+function xmlEsc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "");
+}
+
+function truncate(str, max = 120) {
+  const s = String(str || "");
+  return s.length > max ? s.slice(0, max) + "…" : s;
+}
+
+// ── Build one .pdf Blob for a single config ───────────────────────────────
+async function buildPdfBlob(configId, configPreview, categories, now) {
+  const { jsPDF } = window.jspdf;
+  const {
+    name: configName,
+    blocked:   blockedBucket,
+    monitored: monitoredBucket,
+    timeRange,
+    files: fileList,
+  } = configPreview;
+
+  const displayName = configName || `Config ${configId}`;
+  const footerLabel = truncate(`${displayName}  |  ID: ${configId}`, 90);
+
+  // Letter page, points units (1 pt = 1/72 inch)
+  const doc   = new jsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+  const pageW = doc.internal.pageSize.getWidth();   // 612 pt
+  const pageH = doc.internal.pageSize.getHeight();  // 792 pt
+  const margin = 50;
+  const cw     = pageW - margin * 2;                // content width: 512 pt
+
+  // Color palette (RGB arrays)
+  const C = {
+    blue:      [12,  68,  124],
+    midBlue:   [24,  95,  165],
+    red:       [163, 45,  45 ],
+    gray:      [80,  80,  80 ],
+    lightGray: [160, 160, 160],
+    tableRed:  [190, 60,  60 ],
+    tableBlue: [58,  122, 189],
+    rowAlt:    [247, 250, 253],
+    white:     [255, 255, 255],
+  };
+
+  // ── Cover page ────────────────────────────────────────────────────────────
+  let y = 140;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(26);
+  doc.setTextColor(...C.blue);
+  doc.text("Akamai SIEM Security Report", margin, y);
+
+  y += 36;
+  doc.setFontSize(18);
+  doc.setTextColor(...C.midBlue);
+  doc.text(displayName, margin, y);
+
+  y += 22;
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...C.gray);
+  doc.text(`Configuration ID: ${configId}`, margin, y);
+
+  y += 18;
+  doc.text(`Generated: ${now.toUTCString()}`, margin, y);
+
+  if (timeRange.from && timeRange.to) {
+    y += 18;
+    doc.text(
+      `Period: ${formatDate(new Date(timeRange.from * 1000))} \u2013 ${formatDate(new Date(timeRange.to * 1000))}`,
+      margin, y
+    );
+  }
+
+  const totalEvts = (blockedBucket.count || 0) + (monitoredBucket.count || 0);
+  y += 18;
+  doc.text(
+    `Events: ${totalEvts.toLocaleString()}  |  Blocked: ${(blockedBucket.count || 0).toLocaleString()}  |  Monitored: ${(monitoredBucket.count || 0).toLocaleString()}  |  Categories: ${categories.length}`,
+    margin, y
+  );
+
+  if (fileList && fileList.length) {
+    y += 14;
+    doc.setFontSize(9);
+    doc.setTextColor(...C.lightGray);
+    const srcLines = doc.splitTextToSize(`Source: ${fileList.join(", ")}`, cw);
+    doc.text(srcLines, margin, y);
+  }
+
+  // ── Traffic sections (each starts on a new page) ──────────────────────────
+  const sections = [
+    { name: "Blocked Traffic",   bucket: blockedBucket,   hdrColor: C.red,     tblFill: C.tableRed  },
+    { name: "Monitored Traffic", bucket: monitoredBucket, hdrColor: C.midBlue, tblFill: C.tableBlue },
+  ];
+
+  for (const sec of sections) {
+    await delay(0);
+    doc.addPage();
+    y = margin + 20;
+
+    // Section heading
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(...sec.hdrColor);
+    doc.text(sec.name, margin, y);
+
+    y += 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...C.gray);
+    doc.text(
+      `Events: ${(sec.bucket.count || 0).toLocaleString()}  |  Categories: ${categories.length}`,
+      margin, y
+    );
+    y += 18;
+
+    if ((sec.bucket.count || 0) === 0) {
+      doc.setTextColor(...C.lightGray);
+      doc.text("No events in this section for the selected period.", margin, y);
+      continue;
+    }
+
+    for (const cat of categories) {
+      await delay(0);
+      const fieldMeta = KNOWN_FIELDS.find(f => f.key === cat);
+      const catLabel  = fieldMeta ? fieldMeta.label : cat;
+      const data      = sec.bucket.data[cat] || [];
+      const denom     = sec.bucket.count || 1;
+
+      // For fields with long natural text, wrap instead of truncating.
+      // For all others, truncate at 100 chars to keep rows compact.
+      const wrapField = WRAP_FIELDS.has(cat);
+
+      const tableRows = data.map((item, i) => [
+        i + 1,
+        wrapField ? String(item.value) : truncate(item.value, 100),
+        item.count.toLocaleString(),
+        ((item.count / denom) * 100).toFixed(1) + "%",
+      ]);
+
+      // Column widths: # | Value | Count | Share
+      const colW = [28, cw - 160, 72, 60];
+
+      doc.autoTable({
+        startY: y,
+        head: [
+          [{ content: `Top 10 \u2014 ${catLabel}`, colSpan: 4,
+             styles: { fillColor: sec.hdrColor, textColor: C.white,
+                       fontStyle: "bold", fontSize: 10, cellPadding: 6 } }],
+          ["#", "Value", "Count", "Share"],
+        ],
+        body: tableRows.length
+          ? tableRows
+          : [[{ content: "No data for this field.", colSpan: 4,
+                styles: { textColor: C.lightGray, fontStyle: "italic" } }]],
+        columnStyles: {
+          0: { cellWidth: colW[0], halign: "center", fontStyle: "bold", textColor: sec.hdrColor },
+          1: { cellWidth: colW[1] },
+          2: { cellWidth: colW[2], halign: "right" },
+          3: { cellWidth: colW[3], halign: "right", textColor: C.lightGray },
+        },
+        headStyles:          { fillColor: sec.tblFill, textColor: C.white, fontSize: 9, cellPadding: 4 },
+        bodyStyles:          { fontSize: 9, cellPadding: 4, textColor: C.gray },
+        alternateRowStyles:  { fillColor: C.rowAlt },
+        margin:              { left: margin, right: margin },
+        tableWidth:          cw,
+        // Keep every row on a single page for wrap fields so that a long
+        // multi-line value is never split between two pages.
+        rowPageBreak:        wrapField ? "avoid" : "auto",
+      });
+
+      y = doc.lastAutoTable.finalY + 16;
+    }
+  }
+
+  // ── Footer on every page (added last so total page count is known) ────────
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    const fy = pageH - 26;
+    doc.setDrawColor(...C.lightGray);
+    doc.setLineWidth(0.5);
+    doc.line(margin, fy - 8, pageW - margin, fy - 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...C.lightGray);
+    doc.text(footerLabel, margin, fy);
+    doc.text(`Page ${i} / ${totalPages}`, pageW - margin, fy, { align: "right" });
+  }
+
+  return doc.output("blob");
+}
+
+// ── App ─────────────────────────────────────────────────────────────────────
+function App() {
+  const [step, setStep]               = useState(0);
+  const [loadedFiles, setLoadedFiles] = useState([]); // .jsonl.gz File objects
+  const [reportInfo, setReportInfo]   = useState({}); // parsed report_info.txt
+  const [dragOver, setDragOver]       = useState(false);
+  const [processing, setProcessing]   = useState(false);
+  const [progress, setProgress]       = useState(0);
+  const [procLogs, setProcLogs]       = useState([]);
+  const [procError, setProcError]     = useState("");
+
+  // Per-config aggregation state.
+  // { [configId]: { name, aggCounts: {blocked,monitored}, totals, timeRange, files[] } }
+  const [configData, setConfigData]   = useState({});
+
+  // Combined agg across all configs — used for step 1 category preview bar
+  const combinedAgg = useMemo(() => {
+    const agg = { blocked: {}, monitored: {} };
+    for (const cd of Object.values(configData)) {
+      for (const bucket of ["blocked", "monitored"]) {
+        for (const [cat, valMap] of Object.entries(cd.aggCounts[bucket])) {
+          if (!agg[bucket][cat]) agg[bucket][cat] = {};
+          for (const [v, c] of Object.entries(valMap)) {
+            agg[bucket][cat][v] = (agg[bucket][cat][v] || 0) + c;
+          }
+        }
+      }
+    }
+    return agg;
+  }, [configData]);
+
+  // Totals summed across all configs
+  const allTotals = useMemo(() => {
+    let total = 0, blocked = 0, monitored = 0;
+    for (const cd of Object.values(configData)) {
+      total    += cd.totals.total;
+      blocked  += cd.totals.blocked;
+      monitored += cd.totals.monitored;
+    }
+    return { total, blocked, monitored };
+  }, [configData]);
+
+  // Report state
+  const [categories, setCategories]         = useState(DEFAULT_CATS);
+  // previewData: { [configId]: { name, blocked, monitored, timeRange, files } }
+  const [previewData, setPreviewData]       = useState({});
+  const [generating, setGenerating]         = useState(false);
+  const [generateError, setGenerateError]   = useState("");
+  const [reportReady, setReportReady]       = useState(false);
+  const [reportBlobUrl, setReportBlobUrl]   = useState(null);
+  const [reportFilename, setReportFilename] = useState("");
+  const [isZip, setIsZip]                   = useState(false);
+
+  const fileInputRef = useRef();
+  const logRef       = useRef();
+
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [procLogs]);
+
+  const addLog = (msg, type = "info") =>
+    setProcLogs(l => [...l, { msg, type, ts: new Date().toLocaleTimeString() }]);
+
+  // ── File management ─────────────────────────────────────────────────────
+  const acceptFiles = useCallback((fileList) => {
+    const all      = Array.from(fileList);
+    const gzFiles  = all.filter(f => f.name.endsWith(".gz") || f.name.endsWith(".jsonl") || f.name.endsWith(".agg.json"));
+    const txtFiles = all.filter(f => f.name === "report_info.txt");
+
+    for (const tf of txtFiles) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const parsed = parseReportInfo(e.target.result);
+        setReportInfo(parsed);
+        const count = Object.keys(parsed).length;
+        addLog(`report_info.txt loaded — ${count} configuration(s) registered`, "ok");
+      };
+      reader.readAsText(tf);
+    }
+
+    if (!gzFiles.length) return;
+    setLoadedFiles(prev => {
+      const existing = new Set(prev.map(f => f.name));
+      return [...prev, ...gzFiles.filter(f => !existing.has(f.name))];
+    });
+    setProcError("");
+  }, []);
+
+  const removeFile = (name) =>
+    setLoadedFiles(prev => prev.filter(f => f.name !== name));
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    acceptFiles(e.dataTransfer.files);
+  };
+
+  const handleFileInput = (e) => {
+    acceptFiles(e.target.files);
+    e.target.value = "";
+  };
+
+  // ── Process files ────────────────────────────────────────────────────────
+  const processFiles = async () => {
+    if (!loadedFiles.length) return;
+    setProcessing(true);
+    setProcLogs([]);
+    setProgress(0);
+    setProcError("");
+
+    // Accumulator keyed by config_id
+    const newConfigData = {};
+
+    for (let fi = 0; fi < loadedFiles.length; fi++) {
+      const file = loadedFiles[fi];
+
+      // ── Fast path: pre-aggregated .agg.json file ─────────────────────────
+      if (file.name.endsWith(".agg.json")) {
+        addLog(`Loading aggregate ${file.name}  (${formatSize(file.size)})`, "info");
+        try {
+          const text = await file.text();
+          const agg  = JSON.parse(text);
+
+          if (agg._agg !== true || !agg.config_id) {
+            addLog(`${file.name}: not a valid .agg.json (missing _agg/config_id) — skipping`, "err");
+            setProcError(`${file.name} is not a valid aggregate file.`);
+          } else {
+            const cid = String(agg.config_id);
+
+            if (!newConfigData[cid]) {
+              newConfigData[cid] = {
+                name:      agg.config_name || `Config ${cid}`,
+                metaName:  !!agg.config_name,
+                aggCounts: { blocked: {}, monitored: {} },
+                totals:    { total: 0, blocked: 0, monitored: 0 },
+                timeRange: { from: Infinity, to: 0 },
+                files:     [],
+              };
+            }
+            const cd = newConfigData[cid];
+
+            // Update name — _meta name from agg file is authoritative
+            if (agg.config_name && !cd.metaName) {
+              cd.name    = agg.config_name;
+              cd.metaName = true;
+            }
+
+            // Merge frequency maps directly — no event-level parsing needed
+            mergeAggCounts(cd.aggCounts.blocked,   agg.blocked   || {});
+            mergeAggCounts(cd.aggCounts.monitored, agg.monitored || {});
+
+            // Merge totals
+            const t = agg.totals || {};
+            cd.totals.total     += t.total     || 0;
+            cd.totals.blocked   += t.blocked   || 0;
+            cd.totals.monitored += t.monitored || 0;
+
+            // Widen time range
+            if (agg.from_ts && agg.from_ts < cd.timeRange.from) cd.timeRange.from = agg.from_ts;
+            if (agg.to_ts   && agg.to_ts   > cd.timeRange.to)   cd.timeRange.to   = agg.to_ts;
+
+            // Record source files (use the list embedded in the agg, or the agg file itself)
+            const srcFiles = (agg.files && agg.files.length) ? agg.files : [file.name];
+            for (const sf of srcFiles) {
+              if (!cd.files.includes(sf)) cd.files.push(sf);
+            }
+
+            addLog(
+              `${file.name} [${cd.name}]: ${(t.total || 0).toLocaleString()} events — pre-aggregated, loaded instantly`,
+              "ok"
+            );
+          }
+        } catch (e) {
+          addLog(`${file.name}: ERROR — ${e.message}`, "err");
+          setProcError(e.message);
+        }
+
+        setProgress(Math.round(((fi + 1) / loadedFiles.length) * 100));
+        await delay(0);
+        continue; // skip the gzip path below
+      }
+
+      // ── Standard path: raw .jsonl.gz file ────────────────────────────────
+      addLog(`Loading ${file.name}  (${formatSize(file.size)})`, "info");
+
+      let fileConfigId   = null;
+      let fileConfigName = null;
+      let isFirstLine    = true;
+      let fileCount      = 0;
+      let lineErrors     = 0;
+
+      try {
+        for await (const line of readGzipLines(file)) {
+          let obj;
+          try { obj = JSON.parse(line); } catch { lineErrors++; continue; }
+
+          // ── Detect _meta header (always the first line) ─────────────────
+          if (isFirstLine) {
+            isFirstLine = false;
+            if (obj._meta === true && obj.config_id) {
+              fileConfigId   = String(obj.config_id);
+              fileConfigName = obj.config_name || null;
+              continue; // header is not an event
+            } else {
+              // No _meta — fall back to filename
+              fileConfigId   = configIdFromFilename(file.name) || "unknown";
+              fileConfigName = null;
+              // Fall through: process this line as a regular event
+            }
+          }
+
+          // ── Ensure config bucket exists ────────────────────────────────
+          if (!newConfigData[fileConfigId]) {
+            const infoName = reportInfo[fileConfigId]?.name;
+            newConfigData[fileConfigId] = {
+              name:      fileConfigName || infoName || `Config ${fileConfigId}`,
+              metaName:  !!fileConfigName,
+              aggCounts: { blocked: {}, monitored: {} },
+              totals:    { total: 0, blocked: 0, monitored: 0 },
+              timeRange: { from: Infinity, to: 0 },
+              files:     [file.name],
+            };
+          } else {
+            // Config already seen from a prior file in this batch
+            if (fileConfigName && !newConfigData[fileConfigId].metaName) {
+              newConfigData[fileConfigId].name     = fileConfigName;
+              newConfigData[fileConfigId].metaName = true;
+            }
+            if (!newConfigData[fileConfigId].files.includes(file.name)) {
+              newConfigData[fileConfigId].files.push(file.name);
+            }
+          }
+
+          // ── Ingest event ───────────────────────────────────────────────
+          const cd     = newConfigData[fileConfigId];
+          const bucket = ingestEvent(obj, cd.aggCounts, KNOWN_FIELDS);
+          cd.totals[bucket]++;
+          cd.totals.total++;
+          fileCount++;
+
+          const ts = eventEpochSec(obj);
+          if (ts > 0) {
+            if (ts < cd.timeRange.from) cd.timeRange.from = ts;
+            if (ts > cd.timeRange.to)   cd.timeRange.to   = ts;
+          }
+        }
+
+        const configLabel = fileConfigId
+          ? (newConfigData[fileConfigId]?.name || fileConfigId)
+          : "unknown config";
+        const note = lineErrors ? `  (${lineErrors} unparseable lines skipped)` : "";
+        addLog(`${file.name} [${configLabel}]: ${fileCount.toLocaleString()} events${note}`, "ok");
+      } catch (e) {
+        addLog(`${file.name}: ERROR — ${e.message}`, "err");
+        setProcError(e.message);
+      }
+
+      setProgress(Math.round(((fi + 1) / loadedFiles.length) * 100));
+      await delay(0);
+    }
+
+    // Fix Infinity → 0 for configs with no timestamped events
+    for (const cd of Object.values(newConfigData)) {
+      if (cd.timeRange.from === Infinity) cd.timeRange.from = 0;
+    }
+
+    const numConfigs = Object.keys(newConfigData).length;
+    const totalEvts  = Object.values(newConfigData).reduce((s, cd) => s + cd.totals.total, 0);
+    addLog(
+      `Total: ${totalEvts.toLocaleString()} events across ${numConfigs} configuration(s)`,
+      "ok"
+    );
+
+    setConfigData(newConfigData);
+    setProcessing(false);
+    if (totalEvts > 0) setStep(1);
+  };
+
+  // ── Category helpers ─────────────────────────────────────────────────────
+  const toggleCat = key =>
+    setCategories(p => p.includes(key) ? p.filter(k => k !== key) : [...p, key]);
+
+  const buildPreview = () => {
+    const preview = {};
+    for (const [configId, cd] of Object.entries(configData)) {
+      const mk = bucket => {
+        const d = {};
+        categories.forEach(cat => { d[cat] = topNFromCounts(cd.aggCounts[bucket][cat], 10); });
+        return d;
+      };
+      preview[configId] = {
+        name:      cd.name,
+        timeRange: cd.timeRange,
+        files:     cd.files,
+        blocked:   { count: cd.totals.blocked,   data: mk("blocked") },
+        monitored: { count: cd.totals.monitored, data: mk("monitored") },
+      };
+    }
+    setPreviewData(preview);
+    setReportReady(false);
+    setReportBlobUrl(null);
+    setStep(2);
+  };
+
+  // ── Generate all reports ─────────────────────────────────────────────────
+  const generateAllReports = async () => {
+    setGenerating(true);
+    setGenerateError("");
+    await delay(50);
+    try {
+      const now       = new Date();
+      const configIds = Object.keys(previewData);
+      if (configIds.length === 0) throw new Error("No data to generate reports from.");
+
+      const safeName = name =>
+        (name || "config").replace(/[^a-zA-Z0-9_\-]/g, "_").replace(/_+/g, "_").slice(0, 40);
+      const dateSuffix = now.toISOString().slice(0, 10);
+
+      if (configIds.length === 1) {
+        // Single config → direct .pdf download
+        const cid  = configIds[0];
+        const blob = await buildPdfBlob(cid, previewData[cid], categories, now);
+        const name = previewData[cid].name || `Config ${cid}`;
+        setReportBlobUrl(URL.createObjectURL(blob));
+        setReportFilename(`akamai-siem-${safeName(name)}-${dateSuffix}.pdf`);
+        setIsZip(false);
+      } else {
+        // Multiple configs → one .pdf per config, bundled into a .zip
+        const outerZip = new JSZip();
+        for (const cid of configIds) {
+          await delay(0);
+          const blob = await buildPdfBlob(cid, previewData[cid], categories, now);
+          const name = previewData[cid].name || `Config ${cid}`;
+          outerZip.file(`akamai-siem-${safeName(name)}-${dateSuffix}.pdf`, blob);
+        }
+        const zipBlob = await outerZip.generateAsync({ type: "blob" });
+        setReportBlobUrl(URL.createObjectURL(zipBlob));
+        setReportFilename(`akamai-siem-reports-${dateSuffix}.zip`);
+        setIsZip(true);
+      }
+
+      setReportReady(true);
+    } catch (err) {
+      console.error("Report generation failed:", err);
+      setGenerateError("Report generation failed: " + (err.message || String(err)));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // ── Step indicator ───────────────────────────────────────────────────────
+  const ss = s => step > s ? "done" : step === s ? "active" : "idle";
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  return (
+    <div>
+      <h1>Akamai SIEM Report Generator</h1>
+      <p style={{ fontSize: 13, color: "#666", marginBottom: 24 }}>
+        Load one or more collected event archives (<code>.jsonl.gz</code>) to build
+        per-configuration Top-10 Word reports. Files are processed entirely in your
+        browser — no data is sent anywhere.
+      </p>
+
+      {/* Step indicator */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 24, flexWrap: "wrap" }}>
+        {STEPS.map((l, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div className={`step-dot ${ss(i)}`}>{step > i ? "✓" : i + 1}</div>
+            <span style={{ fontSize: 12, fontWeight: step === i ? 600 : 400, color: step === i ? "#111" : "#888" }}>{l}</span>
+            {i < STEPS.length - 1 && <span style={{ color: "#ccc", fontSize: 18, marginLeft: 2 }}>›</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Step 0: Load files ── */}
+      {step === 0 && (
+        <div>
+          <div className="card">
+            <p className="section-title">Event archives</p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".gz,.jsonl,.agg.json,.txt"
+              multiple
+              style={{ display: "none" }}
+              onChange={handleFileInput}
+            />
+
+            {loadedFiles.length === 0 ? (
+              <div
+                className={`drop-zone ${dragOver ? "drag-over" : ""}`}
+                onClick={() => fileInputRef.current.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+              >
+                <div style={{ fontSize: 32, marginBottom: 8, color: "#ccc" }}>↑</div>
+                <div style={{ fontSize: 13, color: "#555", marginBottom: 4 }}>
+                  Drop <strong>.agg.json</strong> or <strong>.jsonl.gz</strong> files here, or click to browse
+                </div>
+                <div style={{ fontSize: 11, color: "#999", lineHeight: 1.7 }}>
+                  <strong style={{ color: "#3B6D11" }}>.agg.json</strong> — pre-aggregated by <code>aggregator.py</code>, loads instantly ✓<br/>
+                  <strong>.jsonl.gz</strong> — raw archive from <code>collector.py</code>, processed in browser (slower for large files)<br/>
+                  Also drop <code>report_info.txt</code> to include configuration names
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* report_info.txt status banner */}
+                {Object.keys(reportInfo).length > 0 ? (
+                  <div style={{ padding: "7px 12px", background: "#EAF3DE", borderRadius: 8, marginBottom: 10, fontSize: 12, color: "#27500A", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>✓</span>
+                    <span>
+                      <strong>report_info.txt</strong> loaded —{" "}
+                      {Object.entries(reportInfo).map(([id, d]) => `${id}: ${d.name}`).join(" · ")}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ padding: "7px 12px", background: "#f5f5f3", borderRadius: 8, marginBottom: 10, fontSize: 12, color: "#888", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>ℹ</span>
+                    <span>Drop <code>report_info.txt</code> to include configuration names. Names are also read from each file's embedded header.</span>
+                  </div>
+                )}
+
+                {loadedFiles.map(f => {
+                  const cid  = configIdFromFilename(f.name);
+                  const name = cid && reportInfo[cid] ? reportInfo[cid].name : null;
+                  return (
+                    <div key={f.name} className="file-row">
+                      <span style={{ fontSize: 16, color: "#3B6D11" }}>📄</span>
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <div className="file-row-name">{f.name}</div>
+                        {name && <div style={{ fontSize: 11, color: "#185FA5", marginTop: 1 }}>{name} (ID: {cid})</div>}
+                      </div>
+                      <span className="file-row-size">{formatSize(f.size)}</span>
+                      {!processing && (
+                        <button className="file-remove" title="Remove" onClick={() => removeFile(f.name)}>×</button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {!processing && (
+                  <div style={{ marginTop: 8 }}>
+                    <button onClick={() => fileInputRef.current.click()} style={{ fontSize: 12, color: "#185FA5" }}>
+                      + Add more files
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {processing && (
+              <div style={{ marginTop: 16 }}>
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+                <div className="log-area" ref={logRef}>
+                  {procLogs.map((l, i) => (
+                    <div key={i} className={`log-line ${l.type}`}>[{l.ts}] {l.msg}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!processing && procLogs.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div className="log-area" ref={logRef}>
+                  {procLogs.map((l, i) => (
+                    <div key={i} className={`log-line ${l.type}`}>[{l.ts}] {l.msg}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {procError && (
+              <div style={{ marginTop: 10, padding: "8px 12px", background: "#FCEBEB", borderRadius: 8, fontSize: 12, color: "#791F1F" }}>
+                {procError}
+              </div>
+            )}
+
+            {loadedFiles.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+                <button
+                  className="primary-btn"
+                  onClick={processFiles}
+                  disabled={processing || loadedFiles.length === 0}
+                >
+                  {processing
+                    ? `Processing… (${progress}%)`
+                    : `Process ${loadedFiles.length} file${loadedFiles.length > 1 ? "s" : ""} →`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 1: Categories ── */}
+      {step === 1 && (
+        <div>
+          <div className="card">
+            {/* Overall stats */}
+            <div className="stat-grid">
+              <div className="stat-card">
+                <div className="stat-val">{allTotals.total.toLocaleString()}</div>
+                <div className="stat-lbl">Events</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-val" style={{ color: "#A32D2D" }}>{allTotals.blocked.toLocaleString()}</div>
+                <div className="stat-lbl">Blocked</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-val" style={{ color: "#185FA5" }}>{allTotals.monitored.toLocaleString()}</div>
+                <div className="stat-lbl">Monitored</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-val">{Object.keys(configData).length}</div>
+                <div className="stat-lbl">Config{Object.keys(configData).length !== 1 ? "s" : ""}</div>
+              </div>
+            </div>
+
+            {/* Per-config breakdown */}
+            {Object.entries(configData).map(([cid, cd]) => (
+              <div key={cid} style={{ padding: "6px 10px", background: "#f5f5f3", borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
+                <span style={{ fontWeight: 600, color: "#0C447C" }}>{cd.name}</span>
+                <span style={{ color: "#888", marginLeft: 8, fontFamily: "monospace" }}>ID: {cid}</span>
+                <span style={{ marginLeft: 12, color: "#333" }}>{cd.totals.total.toLocaleString()} events</span>
+                <span style={{ marginLeft: 8, color: "#A32D2D" }}>{cd.totals.blocked.toLocaleString()} blocked</span>
+                <span style={{ marginLeft: 8, color: "#185FA5" }}>{cd.totals.monitored.toLocaleString()} monitored</span>
+                <span style={{ marginLeft: 8, color: "#888" }}>{cd.files.length} file{cd.files.length !== 1 ? "s" : ""}</span>
+              </div>
+            ))}
+
+            <hr className="divider" />
+
+            <p className="section-title">Select report categories</p>
+            <p style={{ fontSize: 12, color: "#666", marginBottom: 12 }}>
+              Each selected category produces a Top-10 table in every report. The same categories apply to all configurations.
+            </p>
+
+            {[...new Set(KNOWN_FIELDS.map(f => f.group))].map(group => (
+              <div key={group} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "#aaa", marginBottom: 4 }}>
+                  {group}
+                </div>
+                <div>
+                  {KNOWN_FIELDS.filter(f => f.group === group).map(f => (
+                    <span
+                      key={f.key}
+                      className={`tag ${categories.includes(f.key) ? "selected" : ""}`}
+                      onClick={() => toggleCat(f.key)}
+                      title={f.key}
+                    >
+                      {categories.includes(f.key) ? "✓ " : ""}{f.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Combined category preview bar */}
+          {categories.length > 0 && (
+            <div className="card">
+              <p className="section-title">
+                Preview (all configs) — {KNOWN_FIELDS.find(f => f.key === categories[0])?.label || categories[0]}
+              </p>
+              {topNFromBoth(combinedAgg, categories[0], 5).map((item, i) => {
+                const maxC = topNFromBoth(combinedAgg, categories[0], 1)[0]?.count || 1;
+                return (
+                  <div key={i} className="event-row">
+                    <div className="rank">{i + 1}</div>
+                    <span style={{ flex: 1, fontSize: 12, marginLeft: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.value}
+                    </span>
+                    <div className="bar-bg">
+                      <div className="bar-fill" style={{ width: `${(item.count / maxC) * 100}%` }} />
+                    </div>
+                    <span style={{ fontSize: 12, color: "#888", width: 50, textAlign: "right", flexShrink: 0 }}>
+                      {item.count.toLocaleString()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+            <button onClick={() => setStep(0)}>← Back</button>
+            <button className="primary-btn" disabled={categories.length === 0} onClick={buildPreview}>
+              Build report{Object.keys(configData).length > 1 ? "s" : ""} →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 2: Report ── */}
+      {step === 2 && (
+        <div>
+          {/* Overview card */}
+          <div className="card">
+            <p className="section-title">Report summary</p>
+            <div className="stat-grid">
+              <div className="stat-card">
+                <div className="stat-val">{Object.keys(previewData).length}</div>
+                <div className="stat-lbl">Report{Object.keys(previewData).length !== 1 ? "s" : ""}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-val">{categories.length}</div>
+                <div className="stat-lbl">Categories</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-val">
+                  {Object.values(previewData).reduce((s, p) => s + (p.blocked.count || 0) + (p.monitored.count || 0), 0).toLocaleString()}
+                </div>
+                <div className="stat-lbl">Total events</div>
+              </div>
+            </div>
+            {Object.keys(previewData).length > 1 && (
+              <div style={{ padding: "7px 12px", background: "#E6F1FB", borderRadius: 8, fontSize: 12, color: "#0C447C" }}>
+                {Object.keys(previewData).length} configurations detected — one Word document per configuration,
+                bundled into a single <strong>.zip</strong> file for download.
+              </div>
+            )}
+          </div>
+
+          {/* Per-config preview cards */}
+          {Object.entries(previewData).map(([configId, configPreview]) => {
+            const { name: configName, blocked: blockedBucket, monitored: monitoredBucket, timeRange, files: fileList } = configPreview;
+            return (
+              <div key={configId} className="card">
+                {/* Config header */}
+                <div className="config-card-header">
+                  <div>
+                    <div className="config-name">{configName}</div>
+                    <div className="config-id">ID: {configId}</div>
+                  </div>
+                  <div style={{ textAlign: "right", fontSize: 12, color: "#888" }}>
+                    {fileList.length} file{fileList.length !== 1 ? "s" : ""}
+                  </div>
+                </div>
+
+                {timeRange.from > 0 && timeRange.to > 0 && (
+                  <div style={{ fontSize: 11, color: "#888", marginBottom: 10 }}>
+                    {formatDate(new Date(timeRange.from * 1000))} → {formatDate(new Date(timeRange.to * 1000))}
+                  </div>
+                )}
+
+                <div className="stat-grid" style={{ marginBottom: 12 }}>
+                  <div className="stat-card">
+                    <div className="stat-val">{((blockedBucket.count || 0) + (monitoredBucket.count || 0)).toLocaleString()}</div>
+                    <div className="stat-lbl">Events</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-val" style={{ color: "#A32D2D" }}>{(blockedBucket.count || 0).toLocaleString()}</div>
+                    <div className="stat-lbl">Blocked</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-val" style={{ color: "#185FA5" }}>{(monitoredBucket.count || 0).toLocaleString()}</div>
+                    <div className="stat-lbl">Monitored</div>
+                  </div>
+                </div>
+
+                {/* Per-bucket preview */}
+                {[
+                  { key: "blocked",   name: "Blocked",   bucket: blockedBucket,   color: "#A32D2D" },
+                  { key: "monitored", name: "Monitored", bucket: monitoredBucket, color: "#185FA5" },
+                ].map(sec => {
+                  const sCount = sec.bucket.count || 0;
+                  const sData  = sec.bucket.data  || {};
+                  if (sCount === 0) return null;
+                  return (
+                    <div key={sec.key} style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: sec.color, marginBottom: 8 }}>
+                        {sec.name} · {sCount.toLocaleString()} events
+                      </div>
+                      {categories.slice(0, 3).map(cat => {
+                        const label = KNOWN_FIELDS.find(f => f.key === cat)?.label || cat;
+                        const data  = sData[cat] || [];
+                        const maxC  = data[0]?.count || 1;
+                        if (data.length === 0) return null;
+                        return (
+                          <div key={cat} style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 11, fontWeight: 600, color: "#888", marginBottom: 4 }}>
+                              Top 10 · {label}
+                            </div>
+                            {data.slice(0, 3).map((item, i) => (
+                              <div key={i} className="event-row">
+                                <div className="rank">{i + 1}</div>
+                                <span style={{ flex: 1, fontSize: 12, marginLeft: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {item.value}
+                                </span>
+                                <div className="bar-bg">
+                                  <div className="bar-fill" style={{ width: `${(item.count / maxC) * 100}%`, background: sec.color }} />
+                                </div>
+                                <span style={{ fontSize: 12, color: "#888", width: 50, textAlign: "right", flexShrink: 0 }}>
+                                  {item.count.toLocaleString()}
+                                </span>
+                              </div>
+                            ))}
+                            {data.length > 3 && (
+                              <p style={{ fontSize: 11, color: "#aaa", marginTop: 3 }}>
+                                + {data.length - 3} more · {categories.length - 3 > 0 ? `and ${categories.length - 3} more categories ` : ""}in full report
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {categories.length > 3 && (
+                        <p style={{ fontSize: 11, color: "#bbb" }}>{categories.length - 3} more categories in full report</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+
+          {/* Generate / download */}
+          {!reportReady ? (
+            <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+              <button onClick={() => { setReportReady(false); setStep(1); }}>← Back</button>
+              {generateError && (
+                <div style={{ padding: "8px 12px", background: "#FCEBEB", borderRadius: 8, fontSize: 12, color: "#791F1F", flex: 1 }}>
+                  {generateError}
+                </div>
+              )}
+              <button
+                className="primary-btn"
+                onClick={() => { setGenerateError(""); generateAllReports(); }}
+                disabled={generating}
+              >
+                {generating
+                  ? "Generating…"
+                  : Object.keys(previewData).length > 1
+                    ? `Download ${Object.keys(previewData).length} reports (.zip)`
+                    : "Download PDF report (.pdf)"}
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+              <button onClick={() => { setReportReady(false); setStep(1); }}>← Back</button>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span className="badge badge-success">✓ Ready</span>
+                <a href={reportBlobUrl} download={reportFilename}>
+                  <button className="primary-btn">
+                    {isZip ? "⬇ Download .zip" : "⬇ Download .pdf"}
+                  </button>
+                </a>
+                <button
+                  style={{ fontSize: 12, color: "#666" }}
+                  onClick={() => { setReportReady(false); setGenerateError(""); generateAllReports(); }}
+                  disabled={generating}
+                >
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
