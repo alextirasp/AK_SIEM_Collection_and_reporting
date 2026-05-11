@@ -1,0 +1,11 @@
+# Process all files in SIEM events/ — uses all CPU cores automatically
+python3 aggregator.py
+
+# Explicit files
+python3 aggregator.py "SIEM events/siem-80955-2026-04-21_06-00-00UTC.jsonl.gz"
+
+# Custom worker count and output dir
+python3 aggregator.py --workers 4 --output aggregates/
+
+# Install the fast libraries first (recommended)
+pip3 install orjson isal

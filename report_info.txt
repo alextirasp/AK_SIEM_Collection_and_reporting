@@ -1,0 +1,8 @@
+# Akamai SIEM Configuration Registry
+# Format: config_id|config_name|last_offset|offset_ts
+# last_offset : SIEM API pagination cursor — updated after each collection run
+# offset_ts   : Unix timestamp (UTC) when last_offset was recorded
+#               Used for per-config staleness checking.
+#
+80020|Websites Security|fd2ba;LpEvAMnBrVYN5MllmEEpRIDoIUr3ndeaI3zvfk7pq8pSx9ea0mPTgftMCF1EemUhXQ7n6oODYjklPu-Co7siAWUG1_FPMOGSlM8-AUgo-VZybuTJfbI4LQ|1776892535
+80955|API Security|fd2ba;_QY8NYhs14Wa9_zpS9Y6ccFFW8a2MK0W8Ov8Sw9E0UaBUMSvk86pDSjbG2gF1x-tjpm8r5IuGLX2qfy3glZo5daJxMQOh4MSVUotNBWdiQpNXjcow0WkhZzu|1776891485
